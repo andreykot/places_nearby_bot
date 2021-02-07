@@ -3,18 +3,7 @@ from aiogram import types
 
 
 class Buttons(NamedTuple):
-    """
-    Class to provide comfortable way to initialize buttons for reply/inline markups.
-
-    :param items: list of dicts.
-        List of buttons with parameters.
-        Format of input dict in list: {'text': str, 'callback': str, 'params': dict},
-        where text - button name, callback_data - text to call callback,
-        params - dict of params for aiogram.types.reply_keyboard.KeyboardButton
-        (ex.: reply_location=True, query location from user by button).
-    :param order: list.
-        List of integers. Each number - count of buttons from items in line.
-    """
+    """Class to provide comfortable way to initialize buttons for reply/inline markups."""
 
     items: list
     order: list = []
@@ -24,6 +13,9 @@ class Buttons(NamedTuple):
 
     def make_reply_button(self, index):
         return types.reply_keyboard.KeyboardButton(**self.items[index])
+
+    def make_inline_button(self, index):
+        return types.InlineKeyboardButton(**self.items[index])
 
 
 def build_replykeyboard(buttons: Buttons) -> types.ReplyKeyboardMarkup:
@@ -42,28 +34,15 @@ def build_replykeyboard(buttons: Buttons) -> types.ReplyKeyboardMarkup:
             markup.add(*reply_buttons)
             accumulated += n
 
-    elif isinstance(buttons, list):  # TODO
-        name_is_callback = True if not isinstance(buttons[0], (list, tuple)) else False
-        for button in buttons:
-            if name_is_callback:
-                markup.add(button)
-            else:
-                markup.add(button[0])
     else:
         raise TypeError('Unknown type of buttons in app.buttons.build_replykeyboard')
 
     return markup
 
 
-    #markup = types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-    #markup.add(*iterable)
-    #return markup
-
-
 def build_inlinekeyboard(buttons, row_width: int = 3):
     """
     :param buttons: list or Buttons object.
-        If callback is different from the button name - list of tuples: ({button name}, {button callback data}).
     :param row_width: int.
     :return: types.InlineKeyboardMarkup
     """
@@ -73,27 +52,13 @@ def build_inlinekeyboard(buttons, row_width: int = 3):
         if buttons.order and len(buttons.items) != sum(buttons.order):
             raise ValueError("The count of buttons and their count in order list isn't equal.")
 
-        name_is_callback = True if not isinstance(buttons.items[0], (list, tuple)) else False
         accumulated = 0
         order = buttons.order if buttons.order else [1 for _ in range(len(buttons.items))]
         for n in order:
-            if name_is_callback:
-                inline_buttons = [types.InlineKeyboardButton(text=buttons.items[accumulated+i],
-                                                             callback_data=buttons.items[accumulated+i])
-                                  for i in range(n)]
-            else:
-                inline_buttons = [types.InlineKeyboardButton(text=buttons.items[accumulated+i][0],
-                                                             callback_data=buttons.items[accumulated+i][1])
-                                  for i in range(n)]
-            markup.row(*inline_buttons)
+            inline_buttons = [buttons.make_inline_button(accumulated + i) for i in range(n)]
+            markup.add(*inline_buttons)
             accumulated += n
-    elif isinstance(buttons, list):
-        name_is_callback = True if not isinstance(buttons[0], (list, tuple)) else False
-        for button in buttons:
-            if name_is_callback:
-                markup.add(types.InlineKeyboardButton(text=button, callback_data=button))
-            else:
-                markup.add(types.InlineKeyboardButton(text=button[0], callback_data=button[1]))
+
     else:
         raise TypeError('Unknown type of buttons in app.buttons.build_inlinekeyboard')
 

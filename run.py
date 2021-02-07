@@ -8,7 +8,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
 
     # loop = bot.dispatcher.loop
-    executor.start_polling(bot.dispatcher,
+    executor.start_polling(bot.dp,
                            skip_updates=True,
                            )
 

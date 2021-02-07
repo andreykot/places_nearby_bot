@@ -6,21 +6,40 @@ import asyncio
 import aiohttp
 from aiohttp import ClientTimeout
 
+from app.ParsePOI import parse_osm, parse_google, parse_yandex
+
+
+SOURCES = {
+    "osm": parse_osm.SOURCE,
+    "google": parse_google.SOURCE,
+    "yandex": parse_yandex.SOURCE,
+}
+
+
+async def find_places(lat, lon, radius, source) -> dict:
+    if source not in SOURCES:
+        raise NotImplementedError("Unknown source.")
+
+    source = SOURCES[source]
+    api_url, query_func, create_answer = source['url'], source['query_func'], source['create_answer']
+
+    query = query_func(lat=lat, lon=lon, radius=radius)
+    content = await post(url=api_url, data=query)
+    return create_answer(content)
+
 
 async def post(url: str, data, custom_middleware: Callable = None):
-    print('start', datetime.datetime.now())
     async with aiohttp.ClientSession() as session:
         async with session.post(url=url, data=data,
                                 timeout=ClientTimeout(15)) as response:
 
-            result = await response.read()
+            content = await response.read()
             if custom_middleware:
-                result = custom_middleware(result)
-            print(datetime.datetime.now(), json.loads(result))
-            return result
+                content = custom_middleware(content)
+            return content
 
 
-async def test():
+async def __test():
     async def test_query(lat, lon, radius):
         overpass_query = lambda lat, lon, radius: f"""
         [out:json][timeout:25];
@@ -43,4 +62,4 @@ async def test():
 
 
 if __name__ == "__main__":
-    asyncio.run(test())
+    asyncio.run(__test())
