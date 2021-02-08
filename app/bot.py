@@ -6,8 +6,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import StatesGroup, State
-from aiogram.utils.exceptions import MessageIsTooLong
-from aiogram.utils.parts import paginate
+from aiogram.utils.exceptions import MessageIsTooLong, InvalidQueryID
 
 from app import messages, buttons
 from app.ParsePOI.main import find_places
@@ -25,8 +24,9 @@ async def start(message: types.Message):
     await message.reply(text=messages.START, reply_markup=buttons.MAIN)
 
 
-async def help(message: types.Message):
-    pass
+@dp.message_handler(commands='info')
+async def info(message: types.Message):
+    await message.reply(text=messages.INFO)
 
 
 class Steps(StatesGroup):
@@ -49,13 +49,13 @@ async def set_radius(message: types.Message, state: FSMContext):
 
 @dp.callback_query_handler(state=Steps.radius)
 async def set_source(query: types.CallbackQuery, state: FSMContext):
-    await state.update_data({'radius': int(query.data[0]) * 1000})
+    await state.update_data({'radius': int(query.data)})
 
     await dp.bot.send_message(chat_id=query.from_user.id,
                               text=messages.SET_SOURCE,
                               reply_markup=buttons.SOURCES)
     await Steps.next()
-    await query.answer("Принято!")
+    await query.answer(messages.CALLBACK_SET_ANSWER)
 
 
 @dp.callback_query_handler(state=Steps.source)
@@ -65,27 +65,36 @@ async def step4(query: types.CallbackQuery, state: FSMContext):
 
     if source != 'osm':  # TODO
         await dp.bot.send_message(chat_id=query.from_user.id,
-                                  text="Выбранный ресурс еще не реализован. Выбирайте OpenStreetMap.")
+                                  text=messages.NOT_IMPLEMENTED_SOURCE)
         await state.finish()
         return
 
-    await dp.bot.send_message(chat_id=query.from_user.id, text="Ищем...")
+    await dp.bot.send_message(chat_id=query.from_user.id, text=messages.START_SEARCH)
     answer = await find_places(lat, lon, radius, source)
 
-    for page in paginate(answer['places']):
-        await asyncio.sleep(0.1)
+    for page in answer['places']:
+        await asyncio.sleep(1)
         try:
             await dp.bot.send_message(chat_id=query.from_user.id, text=page)
         except MessageIsTooLong:
             pass
 
-    pos = "Найдено мест: {}\n".format(answer['count'])
+    pos = messages.RESULT_COUNT(answer['count'])
     await dp.bot.send_message(chat_id=query.from_user.id, text=pos)
 
-    await query.answer()
+    try:
+        await query.answer()
+    except InvalidQueryID:
+        pass
+
     await state.finish()
 
 
 @dp.message_handler()
 async def echo(message: types.Message):
     await message.reply(messages.ECHO)
+
+
+@dp.callback_query_handler()
+async def echo(query: types.CallbackQuery):
+    await query.answer(messages.ECHO_CALLBACK)
