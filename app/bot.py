@@ -72,10 +72,10 @@ async def step4(query: types.CallbackQuery, state: FSMContext):
     await dp.bot.send_message(chat_id=query.from_user.id, text=messages.START_SEARCH)
     answer = await find_places(lat, lon, radius, source)
 
-    for page in answer['places']:
-        await asyncio.sleep(1)
+    for place in answer['places']:
+        await asyncio.sleep(0.75)
         try:
-            await dp.bot.send_message(chat_id=query.from_user.id, text=page)
+            await dp.bot.send_message(chat_id=query.from_user.id, text=place, disable_web_page_preview=True)
         except MessageIsTooLong:
             pass
 
