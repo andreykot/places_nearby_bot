@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 
 from aiogram import Bot, Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -70,12 +71,18 @@ async def step4(query: types.CallbackQuery, state: FSMContext):
         return
 
     await dp.bot.send_message(chat_id=query.from_user.id, text=messages.START_SEARCH)
-    answer = await find_places(lat, lon, radius, source)
+    try:
+        answer = await find_places(lat, lon, radius, source)
+    except:
+        traceback.print_exc()
+        await dp.bot.send_message(chat_id=query.from_user.id, text=messages.ERROR)
+        return
 
     for place in answer['places']:
         await asyncio.sleep(0.75)
         try:
-            await dp.bot.send_message(chat_id=query.from_user.id, text=place, disable_web_page_preview=True)
+            await dp.bot.send_message(chat_id=query.from_user.id, text=place,
+                                      parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
         except MessageIsTooLong:
             pass
 

@@ -20,3 +20,13 @@ NOT_IMPLEMENTED_SOURCE = "Выбранный ресурс еще не реали
 
 ECHO = "Неизвестная команда :("
 ECHO_CALLBACK = "Начните поиска сначала"
+ERROR = "Что-то пошло не так... Попробуйте еще раз."
+
+
+def build_place_message(position: int, name: str, google: str, yandex: str, description: str = None):
+    description = '\n\n' + '<i>' + description + '</i>' if description else ""
+    text = f'{position}. <b>{name}</b>' \
+           f'{description}' \
+           f'\n\nПосмотреть на карте:\n<a href="{google}">Google Maps</a>   |   <a href="{yandex}">Яндекс.Карты</a>'
+
+    return text

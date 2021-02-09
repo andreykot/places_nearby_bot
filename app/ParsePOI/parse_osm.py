@@ -2,7 +2,33 @@ import json
 import os
 import typing
 
+from app import messages
 from app.ParsePOI import map_urls
+
+
+OSM_SETS = {
+    "Памятники и мемориалы": [
+        "historic~memorial",
+    ],
+    "Исторические места": [
+        "historic",
+    ],
+    "Точки обзора": [
+        'tourism~viewpoint',
+    ],
+    "Информация для туристов": [
+        'tourist~information',
+    ],
+    "Театры, музеи, выставки": [
+        'amenity~theatre', 'tourism~museum', 'tourism~gallery', 'tourism~artwork', 'amenity~arts_centre',
+    ],
+    "Развлечения": [
+        'tourism~theme_park', 'tourism~aquarium', 'tourism~zoo', "tourism~planetarium",
+    ],
+    "Фонтаны": [
+        "tourism~fountain",
+    ],
+}
 
 
 class OverpassAroundQueryConstructor:
@@ -25,14 +51,10 @@ class OverpassAroundQueryConstructor:
 
     def set_around_nodes(self, sets: dict):
         params = {'lat': self.lat, 'lon': self.lon, 'radius': self.radius}
-        for tag, subtags in sets.items():
-            for subtag in subtags:
-                node_set = tag + '~' + subtag if subtag != '*' else tag
-                node = OverpassNode(filter_='around', filter_params=params, node_set=node_set)
+        for category, tags in sets.items():
+            for tag in tags:
+                node = OverpassNode(filter_='around', filter_params=params, node_set=tag)
                 self.nodes.append(node.make_node())
-
-                if node_set == tag:
-                    break
 
 
 class OverpassNode:
@@ -65,25 +87,51 @@ class OverpassNode:
         return f"around:{radius}, {lat}, {lon}"
 
 
-OSM_TAGS = {
-    "tourism": ['*'],
-    "historic": ['*'],
-}
-
-
 def query_func(lat, lon, radius) -> str:
     def __test_query():
         with open(os.path.join(os.path.dirname(__file__), 'osm_query_test.txt'), 'w') as file:
             query = constructor.construct_query()
-            print(query)
             file.write(query)
 
     constructor = OverpassAroundQueryConstructor(lat=lat, lon=lon, radius=radius)
-    constructor.set_around_nodes(sets=OSM_TAGS)
+    constructor.set_around_nodes(sets=OSM_SETS)
+    __test_query()
     return constructor.construct_query()
 
 
-def answer_constructor(name, description, position_urls):
+def create_answer(content) -> dict:
+    osm_categories = __reverse_osm_sets()
+
+    content = json.loads(content)
+    answer = {"count": 0, "places": []}
+    for place in content['elements']:
+        #print(place)
+        if 'name' in place['tags']:
+            name = place['tags']['name']
+            answer['count'] += 1
+        else:
+            continue
+
+        if 'description' in place['tags']:
+            description = place['tags']['description'] if place['tags']['description'] != name else None
+        elif 'inscription' in place['tags']:
+            description = place['tags']['inscription'] if place['tags']['inscription'] != name else None
+        else:
+            description = None
+
+        msg = messages.build_place_message(
+            position=answer['count'],
+            name=name,
+            google=map_urls.googlemaps_location_url(lat=place['lat'], lon=place['lon']),
+            yandex=map_urls.yandexmaps_location_url(lat=place['lat'], lon=place['lon']),
+            description=description
+        )
+        answer['places'].append(msg)
+
+    return answer
+
+
+def __answer_constructor(name, description, position_urls):
     ans_name = f"Название: {name}\n\n"
     ans_description = f"Описание: {description}\n\n" if description else ""
     ans_position = f"Google: {position_urls['google']}\n\n" \
@@ -92,37 +140,16 @@ def answer_constructor(name, description, position_urls):
     return ans_name + ans_description + ans_position
 
 
-def create_answer(content) -> dict:
-    content = json.loads(content)
-    answer = {"count": 0, "places": []}
-    for place in content['elements']:
-        if 'name' in place['tags']:
-            # print(True, place)
-            name = place['tags']['name']
-            answer['count'] += 1
-        else:
-            # print(False, place)
-            continue
+def __reverse_osm_sets(split_by_tilda=True):
+    new_dict = dict()
+    for category, tags in OSM_SETS.items():
+        for tag in tags:
+            if split_by_tilda:
+                new_dict[tag.split('~')[1] if len(tag.split('~')) > 1 else tag] = category
+            else:
+                new_dict[tag] = category
 
-        if 'description' in place['tags']:
-            description = place['tags']['description']
-            if description == name:
-                description = None
-        elif 'inscription' in place['tags']:
-            description = place['tags']['inscription']
-            if description == name:
-                description = None
-        else:
-            description = None
-
-        position_urls = dict()
-        position_urls['google'] = map_urls.googlemaps_location_url(lat=place['lat'], lon=place['lon'])
-        position_urls['yandex'] = map_urls.yandexmaps_location_url(lat=place['lat'], lon=place['lon'])
-
-        answer['places'].append(answer_constructor(name, description, position_urls))
-    print(answer, len(answer['places']))
-
-    return answer
+    return new_dict
 
 
 SOURCE = {
