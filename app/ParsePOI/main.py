@@ -1,5 +1,3 @@
-import datetime
-import json
 from typing import Callable
 
 import asyncio
@@ -24,7 +22,9 @@ async def find_places(lat, lon, radius, source) -> dict:
     api_url, query_func, create_answer = source['url'], source['query_func'], source['create_answer']
 
     query = query_func(lat=lat, lon=lon, radius=radius)
+    # t1 = time.time()
     content = await post(url=api_url, data=query)
+    # print(time.time() - t1, ' sec')
     return create_answer(content)
 
 

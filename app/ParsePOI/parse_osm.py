@@ -1,33 +1,25 @@
 import json
 import os
-import typing
 
 from app import messages
 from app.ParsePOI import map_urls
 
 
+# list of tags for overpass query, tag with $ - ignored in query and used only for message builder
 OSM_SETS = {
-    "Памятники и мемориалы": [
-        "historic~memorial",
-    ],
-    "Исторические места": [
-        "historic",
-    ],
-    "Точки обзора": [
-        'tourism~viewpoint',
-    ],
-    "Информация для туристов": [
-        'tourist~information',
-    ],
-    "Театры, музеи, выставки": [
-        'amenity~theatre', 'tourism~museum', 'tourism~gallery', 'tourism~artwork', 'amenity~arts_centre',
-    ],
-    "Развлечения": [
-        'tourism~theme_park', 'tourism~aquarium', 'tourism~zoo', "tourism~planetarium",
-    ],
-    "Фонтаны": [
-        "tourism~fountain",
-    ],
+    "historic": ["$aircraft", "$aqueduct", "$archaeological_site", "$battlefield", "$bomb_crater",
+                 "$boundary_stone", "$building", "$cannon", "$castle", "$castle_wall", "$charcoal_pile", "$church",
+                 "$church", "$city_gate", "$citywalls", "$farm", "$fort", "$gallows", "$highwater_mark", "$locomotive",
+                 "$manor", "$memorial", "$milestone", "$monastery", "$monument", "$optical_telegraph", "$pillory",
+                 "$railway_car", "$ruins", "$rune_stone", "$ship", "$tank", "$tomb", "$tower", "$wayside_cross",
+                 "$wayside_shrine", "$wreck"],
+    "tourism": ["attraction", "viewpoint", "information", "museum", "gallery", "artwork", "theme_park", "aquarium",
+                "zoo", "planetarium", "fountain"],
+    "amenity": ["theatre", "arts_centre"],
+}
+
+OSM_EQUAL_TAGS = {
+    'artwork': 'artwork_type',
 }
 
 
@@ -52,9 +44,13 @@ class OverpassAroundQueryConstructor:
     def set_around_nodes(self, sets: dict):
         params = {'lat': self.lat, 'lon': self.lon, 'radius': self.radius}
         for category, tags in sets.items():
-            for tag in tags:
-                node = OverpassNode(filter_='around', filter_params=params, node_set=tag)
-                self.nodes.append(node.make_node())
+            if not tags or all([tag.startswith('$') for tag in tags]):
+                node = OverpassNode(filter_='around', filter_params=params, node_set=category)
+            else:
+                node_set = category + '~' + '"{}"'.format('|'.join([tag for tag in tags if not tag.startswith('$')]))
+                node = OverpassNode(filter_='around', filter_params=params, node_set=node_set)
+
+            self.nodes.append(node.make_node())
 
 
 class OverpassNode:
@@ -100,17 +96,11 @@ def query_func(lat, lon, radius) -> str:
 
 
 def create_answer(content) -> dict:
-    osm_categories = __reverse_osm_sets()
-
     content = json.loads(content)
-    answer = {"count": 0, "places": []}
-    for place in content['elements']:
-        #print(place)
-        if 'name' in place['tags']:
-            name = place['tags']['name']
-            answer['count'] += 1
-        else:
-            continue
+    answer = {"count": len(content['elements']), "places": []}
+    for i, place in enumerate(content['elements']):
+        name = place['tags']['name'] if 'name' in place['tags'] else "<i>место без названия</i>"
+        tags = __collect_tags(response=place['tags'])
 
         if 'description' in place['tags']:
             description = place['tags']['description'] if place['tags']['description'] != name else None
@@ -120,8 +110,9 @@ def create_answer(content) -> dict:
             description = None
 
         msg = messages.build_place_message(
-            position=answer['count'],
+            position=i+1,
             name=name,
+            tags=tags,
             google=map_urls.googlemaps_location_url(lat=place['lat'], lon=place['lon']),
             yandex=map_urls.yandexmaps_location_url(lat=place['lat'], lon=place['lon']),
             description=description
@@ -131,15 +122,26 @@ def create_answer(content) -> dict:
     return answer
 
 
-def __answer_constructor(name, description, position_urls):
-    ans_name = f"Название: {name}\n\n"
-    ans_description = f"Описание: {description}\n\n" if description else ""
-    ans_position = f"Google: {position_urls['google']}\n\n" \
-                   f"Яндекс: {position_urls['yandex']}\n\n"
+def __collect_tags(response: dict) -> list:
+    res = list()
+    for category, tags in OSM_SETS.items():
+        if category in response:
+            res.append(category)
+            for tag in tags:
+                tag = tag if not tag.startswith("$") else tag[1:]
+                tag = tag if tag not in OSM_EQUAL_TAGS else OSM_EQUAL_TAGS[tag]
 
-    return ans_name + ans_description + ans_position
+                if tag in response[category]:
+                    res.append(tag)
+                    while tag in response:
+                        res.append(response[tag])
+                        tag = response[tag]
+                    break
+
+    return res
 
 
+# deprecated
 def __reverse_osm_sets(split_by_tilda=True):
     new_dict = dict()
     for category, tags in OSM_SETS.items():
@@ -153,6 +155,7 @@ def __reverse_osm_sets(split_by_tilda=True):
 
 
 SOURCE = {
+    'name': 'OpenStreetMap',
     'url': r"https://lz4.overpass-api.de/api/interpreter",
     'query_func': query_func,
     'create_answer': create_answer,
