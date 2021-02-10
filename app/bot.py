@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 
 from aiogram import Bot, Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -9,7 +10,7 @@ from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.utils.exceptions import MessageIsTooLong, InvalidQueryID
 
 from app import messages, buttons
-from app.ParsePOI.main import find_places
+from app.ParsePOI.main import find_places, SOURCES
 
 from app.configs.bot import API_TOKEN
 
@@ -69,13 +70,19 @@ async def step4(query: types.CallbackQuery, state: FSMContext):
         await state.finish()
         return
 
-    await dp.bot.send_message(chat_id=query.from_user.id, text=messages.START_SEARCH)
-    answer = await find_places(lat, lon, radius, source)
+    await dp.bot.send_message(chat_id=query.from_user.id, text=messages.START_SEARCH(SOURCES[source]['name']))
+    try:
+        answer = await find_places(lat, lon, radius, source)
+    except:
+        traceback.print_exc()
+        await dp.bot.send_message(chat_id=query.from_user.id, text=messages.ERROR)
+        return
 
-    for page in answer['places']:
+    for place in answer['places']:
         await asyncio.sleep(1)
         try:
-            await dp.bot.send_message(chat_id=query.from_user.id, text=page)
+            await dp.bot.send_message(chat_id=query.from_user.id, text=place,
+                                      parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
         except MessageIsTooLong:
             pass
 

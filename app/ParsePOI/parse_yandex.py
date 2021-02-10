@@ -7,6 +7,7 @@ def create_answer():
 
 
 SOURCE = {
+    'name': 'Яндекс.Карты',
     'url': None,
     'query_func': query_func,
     'create_answer': create_answer,

@@ -1,7 +1,7 @@
 from app.markups import *
 
 main_buttons = [
-    {'text': 'Найти достопримечательности', 'request_location': True},
+    {'text': 'Найти интересные места', 'request_location': True},
 ]
 MAIN = build_replykeyboard(Buttons(items=main_buttons))
 
