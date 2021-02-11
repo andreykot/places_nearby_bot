@@ -11,6 +11,10 @@ SET_SOURCE = "Выберите источник данных для поиска
 
 START_SEARCH = lambda source: f"Ищем по данным {source}..."
 
+CHANGE_RADIUS = lambda limit, radius: f"Найдено более {limit} результатов. Уменьшаю радиус до {radius}."
+KEEP_RADIUS = "Даже с минимальным радиусом мест более 100. Выдаем все :)"
+KEEP_PREVIOUS_RADIUS = "Показываю все результаты с предыдущим радиусом поиска."
+
 RESULT_COUNT = lambda number: f"Найдено мест: {number}\n"
 
 CALLBACK_SET_ANSWER = "Принято!"
