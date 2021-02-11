@@ -15,7 +15,6 @@ OSM_SETS = {
                  "$wayside_shrine", "$wreck"],
     "tourism": ["attraction", "viewpoint", "information", "museum", "gallery", "artwork", "theme_park", "aquarium",
                 "zoo", "planetarium", "fountain"],
-    "amenity": ["theatre", "arts_centre"],
 }
 
 OSM_EQUAL_TAGS = {
@@ -117,7 +116,7 @@ def create_answer(content) -> dict:
             yandex=map_urls.yandexmaps_location_url(lat=place['lat'], lon=place['lon']),
             description=description
         )
-        answer['places'].append(msg)
+        answer['places'].append({'text': msg, 'lat': place['lat'], 'lon': place['lon']})
 
     return answer
 

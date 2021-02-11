@@ -54,21 +54,46 @@ async def step4(query: types.CallbackQuery, state: FSMContext):
         lat, lon, radius, source = data['lat'], data['lon'], query.data, 'osm'
 
     await dp.bot.send_message(chat_id=query.from_user.id, text=messages.START_SEARCH(SOURCES[source]['name']))
-    try:
-        answer = await find_places(lat, lon, radius, source)
-    except:
-        traceback.print_exc()
-        await dp.bot.send_message(chat_id=query.from_user.id, text=messages.ERROR)
-        return
+
+    radius_collection = [(item['callback_data'], item['text'])
+                         for item in sorted(buttons.radius_buttons, key=lambda x: int(x['callback_data']))
+                         if int(item['callback_data']) < int(radius)]
+    limit = 100
+    last_result = None
+    while True:
+        try:
+            answer = await find_places(lat, lon, radius, source)
+            if answer['count'] > limit and len(radius_collection) > 0:
+                radius_set = radius_collection.pop()
+                radius = radius_set[0]
+                await dp.bot.send_message(chat_id=query.from_user.id, text=messages.CHANGE_RADIUS(limit, radius_set[1]))
+            elif answer['count'] > limit and len(radius_collection) == 0:
+                await dp.bot.send_message(chat_id=query.from_user.id, text=messages.KEEP_RADIUS)
+                break
+            else:
+                break
+            last_result = answer
+        except:
+            traceback.print_exc()
+            await dp.bot.send_message(chat_id=query.from_user.id, text=messages.ERROR)
+            return
+
+    if last_result and answer['count'] == 0:
+        answer = last_result
+        await dp.bot.send_message(chat_id=query.from_user.id, text=messages.KEEP_PREVIOUS_RADIUS)
 
     pos = messages.RESULT_COUNT(answer['count'])
     await dp.bot.send_message(chat_id=query.from_user.id, text=pos)
 
     for place in answer['places']:
-        await asyncio.sleep(1)
+        await asyncio.sleep(1.5)
         try:
-            await dp.bot.send_message(chat_id=query.from_user.id, text=place,
+            await dp.bot.send_message(chat_id=query.from_user.id, text=place['text'],
                                       parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+            await asyncio.sleep(0.3)
+            await dp.bot.send_location(chat_id=query.from_user.id,
+                                       latitude=place['lat'],
+                                       longitude=place['lon'])
         except MessageIsTooLong:
             pass
 
