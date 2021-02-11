@@ -32,7 +32,7 @@ async def info(message: types.Message):
 
 class Steps(StatesGroup):
     radius = State()
-    source = State()
+    # source = State()
 
 
 @dp.message_handler(state='*', content_types=types.ContentType.LOCATION)
@@ -49,26 +49,9 @@ async def set_radius(message: types.Message, state: FSMContext):
 
 
 @dp.callback_query_handler(state=Steps.radius)
-async def set_source(query: types.CallbackQuery, state: FSMContext):
-    await state.update_data({'radius': int(query.data)})
-
-    await dp.bot.send_message(chat_id=query.from_user.id,
-                              text=messages.SET_SOURCE,
-                              reply_markup=buttons.SOURCES)
-    await Steps.next()
-    await query.answer(messages.CALLBACK_SET_ANSWER)
-
-
-@dp.callback_query_handler(state=Steps.source)
 async def step4(query: types.CallbackQuery, state: FSMContext):
     async with state.proxy() as data:
-        lat, lon, radius, source = data['lat'], data['lon'], data['radius'], query.data
-
-    if source != 'osm':  # TODO
-        await dp.bot.send_message(chat_id=query.from_user.id,
-                                  text=messages.NOT_IMPLEMENTED_SOURCE)
-        await state.finish()
-        return
+        lat, lon, radius, source = data['lat'], data['lon'], query.data, 'osm'
 
     await dp.bot.send_message(chat_id=query.from_user.id, text=messages.START_SEARCH(SOURCES[source]['name']))
     try:
@@ -78,6 +61,9 @@ async def step4(query: types.CallbackQuery, state: FSMContext):
         await dp.bot.send_message(chat_id=query.from_user.id, text=messages.ERROR)
         return
 
+    pos = messages.RESULT_COUNT(answer['count'])
+    await dp.bot.send_message(chat_id=query.from_user.id, text=pos)
+
     for place in answer['places']:
         await asyncio.sleep(1)
         try:
@@ -85,9 +71,6 @@ async def step4(query: types.CallbackQuery, state: FSMContext):
                                       parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
         except MessageIsTooLong:
             pass
-
-    pos = messages.RESULT_COUNT(answer['count'])
-    await dp.bot.send_message(chat_id=query.from_user.id, text=pos)
 
     try:
         await query.answer()
