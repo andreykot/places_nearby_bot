@@ -57,34 +57,39 @@ async def step4(query: types.CallbackQuery, state: FSMContext):
 
     radius_collection = [(item['callback_data'], item['text'])
                          for item in sorted(buttons.radius_buttons, key=lambda x: int(x['callback_data']))
-                         if int(item['callback_data']) < int(radius)]
-    limit = 100
+                         if int(item['callback_data']) <= int(radius)]
+    radius_collection.insert(0, ('250', '0.25 km'))  # test it
+    radius_collection.insert(0, ('100', '0.1 km'))  # test it
+    limit = 50
     last_result = None
     while True:
+        radius, radius_txt = radius_collection.pop()
         try:
             answer = await find_places(lat, lon, radius, source)
             if answer['count'] > limit and len(radius_collection) > 0:
-                radius_set = radius_collection.pop()
-                radius = radius_set[0]
-                await dp.bot.send_message(chat_id=query.from_user.id, text=messages.CHANGE_RADIUS(limit, radius_set[1]))
+                await dp.bot.send_message(chat_id=query.from_user.id,
+                                          text=messages.CHANGE_RADIUS(limit, radius_txt, radius_collection[-1][1]))
             elif answer['count'] > limit and len(radius_collection) == 0:
-                await dp.bot.send_message(chat_id=query.from_user.id, text=messages.KEEP_RADIUS)
+                await dp.bot.send_message(chat_id=query.from_user.id,
+                                          text=messages.KEEP_RADIUS(limit, radius_collection[-1][1]))
                 break
             else:
                 break
-            last_result = answer
+            last_result = (answer, radius, radius_txt)
+            await asyncio.sleep(1.5)
         except:
             traceback.print_exc()
             await dp.bot.send_message(chat_id=query.from_user.id, text=messages.ERROR)
             return
 
     if last_result and answer['count'] == 0:
-        answer = last_result
-        await dp.bot.send_message(chat_id=query.from_user.id, text=messages.KEEP_PREVIOUS_RADIUS)
+        answer, radius, radius_txt = last_result
+        await dp.bot.send_message(chat_id=query.from_user.id, text=messages.KEEP_PREVIOUS_RADIUS(radius_txt))
 
     pos = messages.RESULT_COUNT(answer['count'])
     await dp.bot.send_message(chat_id=query.from_user.id, text=pos)
 
+    await state.finish()
     for place in answer['places']:
         await asyncio.sleep(1.5)
         try:
@@ -101,8 +106,6 @@ async def step4(query: types.CallbackQuery, state: FSMContext):
         await query.answer()
     except InvalidQueryID:
         pass
-
-    await state.finish()
 
 
 @dp.message_handler()
