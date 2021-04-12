@@ -1,0 +1,8 @@
+version: "3.9"
+services:
+  bot:
+    build: .
+    restart: on-failure
+    command: python run.py
+    environment:
+      - PLACES_NEARBY_TOKEN=${PLACES_NEARBY_TOKEN}
